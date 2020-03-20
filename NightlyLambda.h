@@ -149,7 +149,7 @@ constexpr bool is_irreducible_v = is_irreducible<_ExprTy>::value;
 
 // STRUCT TEMPLATE full_reduction
 template <class _ExprTy, class = void>
-struct full_reduction {
+struct full_reduction { // !is_irreducible_v<_ExprTy>
     using _ReduceOnce = typename _Full_reduction_impl<typename _ExprTy::self>::type;
     using type = typename full_reduction<_ReduceOnce>::type;
 };
@@ -166,11 +166,11 @@ using full_reduction_t = typename full_reduction<_ExprTy>::type;
 template <class _Self, class _SubstTy>
 struct substitution_result {
     static_assert(is_variable_v<_Self>, "invalid _Self");
-
+    
+    static constexpr bool has_effect = std::is_same_v<typename _Self::self, typename _SubstTy::prim::self>;
     // x[x <= a] -> a
     // x[y <= a] -> x
-    using type = std::conditional_t<std::is_same_v<typename _Self::self, typename _SubstTy::prim::self>
-        , typename _SubstTy::sec::self, typename _Self::self>;
+    using type = std::conditional_t<has_effect, typename _SubstTy::sec::self, typename _Self::self>;
 };
 
 template <class _ExprTy, class _SubstTy>
@@ -308,7 +308,7 @@ struct _Unshadow<lambda_node<shadowed<_VarTy>, _ExprTy>
 template <class _FuncTy, class _ArgTy, class _First, class... _Rest>
 struct _Unshadow<application_node<_FuncTy, _ArgTy>, std_ext::type_list<_First, _Rest...>>
 {
-    using _UnshadowFunc = _Unshadow<typename _FuncTy::type, std_ext::type_list<_First, _Rest...>>;
+    using _UnshadowFunc = _Unshadow<typename _FuncTy::self, std_ext::type_list<_First, _Rest...>>;
     using _FuncResult = typename _UnshadowFunc::type;
     using _FuncRem = typename _UnshadowFunc::remaining_names;
     using _UnshadowArg = _Unshadow<typename _ArgTy::self, _FuncRem>;
@@ -408,9 +408,11 @@ struct substitution_result<lambda_node<_VarTy, _ExprTy>, _SubstTy>
     using _Param = typename _VarTy::self;
     using _ShadowParamIfNeeded = std::conditional_t<_SubstFreeVars::template contains<_Param>
         , shadowed<_Param>, _Param>;
-
-    using type = std::conditional_t<std::is_same_v<
-        typename _VarTy::self, typename _SubstTy::prim::self>
+        
+    static constexpr bool has_effect = std::is_same_v<
+        typename _VarTy::self, typename _SubstTy::prim::self>;
+        
+    using type = std::conditional_t<has_effect
             , typename lambda_node<typename _VarTy::self, typename _ExprTy::self>
             , lambda_node<_ShadowParamIfNeeded, substitution_result_t<
                 typename _ExprTy::self, _SubstTy>>>;
